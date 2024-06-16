@@ -1,0 +1,21 @@
+def smiles_to_ecfp(smiles, radius=2, n_bits=2048):
+    mol = Chem.MolFromSmiles(smiles)
+    ecfp = AllChem.GetMorganFingerprintAsBitVect(mol, radius, nBits=n_bits)
+    array = np.zeros((0,), dtype=np.int8)
+    DataStructs.ConvertToNumpyArray(ecfp, array)
+    return array
+
+
+# Apply the function to your SMILES data
+df['ecfp'] = df['molecule_smiles'].apply(lambda x: smiles_to_ecfp(x))
+
+#code from GPT
+def compute_ecfp(smiles_string):
+    mol = Chem.MolFromSmiles(smiles_string)
+    if mol is not None:  # Ensure the molecule could be parsed
+        fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius=2, nBits=2048)
+        return list(fp)
+    return [0]*2048  # Return a zero vector if the molecule could not be parsed
+
+# Apply the function to the 'molecule_smiles' column
+df['ecfp'] = df['molecule_smiles'].apply(compute_ecfp)
