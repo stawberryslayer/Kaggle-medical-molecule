@@ -1,0 +1,41 @@
+import torch
+from torch_geometric.data import DataLoader
+from torch_geometric.nn import GATConv, global_mean_pool
+import torch.nn.functional as F
+
+class GNN(torch.nn.Module):
+    def __init__(self, num_features, num_protein_types, embedding_dim=10):
+        super(GNN, self).__init__()
+        self.conv1 = GATConv(num_features, 16, heads=8)
+        self.conv2 = GATConv(16 * 8, 32)
+        self.protein_embedding = torch.nn.Embedding(num_protein_types, embedding_dim)
+        self.fc1 = torch.nn.Linear(32 + embedding_dim, 64)
+        self.fc2 = torch.nn.Linear(64, 1)
+
+    def forward(self, data):
+        x, edge_index, batch, protein_idx = data.x, data.edge_index, data.batch, data.protein_idx
+        x = F.relu(self.conv1(x, edge_index))
+        x = self.conv2(x, edge_index)
+        x = global_mean_pool(x, batch)
+        protein_embed = self.protein_embedding(protein_idx)
+        x = torch.cat([x, protein_embed], dim=1)
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)
+
+# Assume data_list is filtered to remove None entries and prepared correctly
+model = GNN(num_features=1, num_protein_types=3, embedding_dim=10)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+criterion = torch.nn.MSELoss()
+
+loader = DataLoader(data_list, batch_size=32, shuffle=True)
+epochs = 30
+for epoch in range(epochs):
+    model.train()
+    for batch in loader:
+        if batch.y is not None:  # Ensure target values are available
+            optimizer.zero_grad()
+            output = model(batch)
+            loss = criterion(output, batch.y.view(-1, 1))  # Ensure matching shape
+            loss.backward()
+            optimizer.step()
+    print(f'Epoch {epoch+1}, Loss: {loss.item()}')
